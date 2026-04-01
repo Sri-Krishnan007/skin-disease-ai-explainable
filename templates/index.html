@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MedVision AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="{{ url_for('static', filename='script.js') }}"></script>
+</head>
+<body>
+<div id="loading-overlay" style="display:none;">
+    <div class="spinner"></div>
+    <p>Analyzing image and generating explanations...</p>
+</div>
+<div class="container">
+
+    <!-- HEADER -->
+    <header>
+        <h1>🧠 MedVision AI</h1>
+        <p>AI-powered Skin Disease Detection with Explainable AI</p>
+    </header>
+
+    <!-- UPLOAD -->
+    <section class="upload-section">
+        <form id="upload-form" method="POST" enctype="multipart/form-data">
+            <label class="upload-box">
+                <input
+                type="file"
+                name="image"
+                id="image-input"
+                accept="image/*"
+                capture="environment"
+                required/>
+                <span>📷 Upload or Capture Skin Image</span>
+            </label>
+            <div id="preview-section" class="hidden">
+                <h3>Preview</h3>
+                <img id="preview-img" class="preview-img" src="#" alt="Preview" />
+                <div>
+                    <button type="button" id="confirm-btn">Confirm & Analyze</button>
+                    <button type="button" id="change-btn">Change Image</button>
+                </div>
+            </div>
+            <button type="submit" id="analyze-btn" class="hidden">Analyze</button>
+        </form>
+    </section>
+
+    <!-- FLASH MESSAGES -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% if label %}
+
+    <!-- RESULTS -->
+    <section class="result-section">
+
+        <!-- Prediction -->
+        <div class="card">
+            <h2>Prediction</h2>
+            <p><strong>{{ label }}</strong></p>
+            <p>Confidence: {{ confidence }}%</p>
+            <p>{{ confidence_explanation }}</p>
+        </div>
+
+        <!-- Risk -->
+        <div class="card risk {{ risk_level|lower }}">
+            <h2>Risk Level</h2>
+            <p>{{ risk_level }}</p>
+        </div>
+
+        <!-- Warning -->
+        {% if warning %}
+        <div class="warning-box">
+            ⚠️ {{ warning }}
+        </div>
+        {% endif %}
+
+        <!-- Images and Explanations -->
+        <div class="images">
+            <div>
+                <h3>Original Image</h3>
+                <img src="{{ image }}" alt="Original">
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Grad-CAM</h2>
+            <p>
+                <strong>What is Grad-CAM?</strong><br>
+                Grad-CAM (Gradient-weighted Class Activation Mapping) is a visualization technique that highlights the regions in the input image that were most important for the AI’s prediction. It helps users and clinicians understand which parts of the skin lesion image influenced the model’s decision.
+            </p>
+            <ul>
+                <li><strong>Red/Yellow areas:</strong> Most influential for the AI’s classification.</li>
+                <li><strong>Blue areas:</strong> Less important for the prediction.</li>
+                <li>Use this map to verify if the AI is focusing on the actual lesion and not on irrelevant background.</li>
+            </ul>
+            <p>
+                <em>Tip: If the highlighted area does not match the lesion, the prediction may be less reliable.</em>
+            </p>
+            <img src="{{ gradcam_result }}" alt="Grad-CAM" style="max-width:100%;border:1px solid #ccc;margin:10px 0;">
+            <div>
+                <a href="{{ gradcam_result }}" download="gradcam_result.jpg" class="button">Download Grad-CAM Image</a>
+            </div>
+        </div>
+        <div class="card">
+            <h2>Grad-CAM++</h2>
+            <p>
+                <strong>What is Grad-CAM++?</strong><br>
+                Grad-CAM++ is an advanced version of Grad-CAM that provides even better localization of the regions in the image that most influenced the AI’s prediction. It is especially useful for images with multiple relevant regions or small, detailed features.
+            </p>
+            <ul>
+                <li><strong>Sharper focus:</strong> Grad-CAM++ can highlight multiple important areas, not just the largest one.</li>
+                <li><strong>Interpretation:</strong> Red/yellow areas are most influential, blue areas are less important.</li>
+                <li>Use this map to see if the AI is focusing on all relevant parts of the lesion, especially for complex or irregular cases.</li>
+            </ul>
+            <p>
+                <em>Tip: Grad-CAM++ is particularly helpful for understanding predictions on images with more than one suspicious region.</em>
+            </p>
+            <img src="{{ gradcampp_result }}" alt="Grad-CAM++" style="max-width:100%;border:1px solid #ccc;margin:10px 0;">
+            <div>
+                <a href="{{ gradcampp_result }}" download="gradcampp_result.jpg" class="button">Download Grad-CAM++ Image</a>
+            </div>
+        </div>
+        <div class="card">
+            <h2>LIME</h2>
+            <p>
+                <strong>What is LIME?</strong><br>
+                LIME (Local Interpretable Model-agnostic Explanations) explains the AI’s prediction by highlighting the specific regions of the image that most influenced the result. It works by perturbing parts of the image and observing how the prediction changes.
+            </p>
+            <ul>
+                <li><strong>Highlighted regions:</strong> Show the superpixels (segments) that contributed most to the AI’s decision.</li>
+                <li><strong>Interpretation:</strong> If the highlighted area matches the lesion, the AI’s reasoning is likely trustworthy.</li>
+                <li>LIME is model-agnostic, meaning it can explain any AI model’s prediction, not just neural networks.</li>
+            </ul>
+            <p>
+                <em>Tip: Use LIME to check if the AI is focusing on the correct part of the image, especially in ambiguous or complex cases.</em>
+            </p>
+            <img src="{{ lime_result }}" alt="LIME" style="max-width:100%;border:1px solid #ccc;margin:10px 0;">
+            <div>
+                <a href="{{ lime_result }}" download="lime_result.jpg" class="button">Download LIME Image</a>
+            </div>
+        </div>
+        <div class="card">
+            <h2>Saliency Map</h2>
+            <p>
+                <strong>What is a Saliency Map?</strong><br>
+                A Saliency Map visualizes which pixels in the image have the greatest impact on the AI’s prediction. It is generated by computing the gradient of the output with respect to the input image, highlighting the most influential areas.
+            </p>
+            <ul>
+                <li><strong>Bright regions:</strong> Indicate pixels that most strongly affect the model’s output.</li>
+                <li><strong>Darker regions:</strong> Have less influence on the prediction.</li>
+                <li>Use this map to check if the AI is focusing on the lesion itself or being distracted by background features.</li>
+            </ul>
+            <p>
+                <em>Tip: Saliency maps are especially useful for quickly spotting if the model’s attention is on the correct area, but may be noisier than Grad-CAM for some images.</em>
+            </p>
+            <img src="{{ saliency_result }}" alt="Saliency Map" style="max-width:100%;border:1px solid #ccc;margin:10px 0;">
+            <div>
+                <a href="{{ saliency_result }}" download="saliency_result.jpg" class="button">Download Saliency Map</a>
+            </div>
+        </div>
+        <div class="card">
+            <h2>Occlusion Map</h2>
+            <p>
+                <strong>What is an Occlusion Map?</strong><br>
+                An Occlusion Map is created by systematically covering (occluding) different parts of the image and observing how the AI’s prediction changes. This helps identify which regions are most critical for the model’s decision.
+            </p>
+            <ul>
+                <li><strong>Bright/colored regions:</strong> Areas where occlusion causes a large change in prediction, indicating high importance.</li>
+                <li><strong>Darker regions:</strong> Occluding these areas has little effect, so they are less important for the prediction.</li>
+                <li>Use this map to verify that the AI is sensitive to the lesion and not to irrelevant background.</li>
+            </ul>
+            <p>
+                <em>Tip: Occlusion maps are especially useful for detecting if the model is relying on spurious features or artifacts in the image.</em>
+            </p>
+            <img src="{{ occlusion_result }}" alt="Occlusion Map" style="max-width:100%;border:1px solid #ccc;margin:10px 0;">
+            <div>
+                <a href="{{ occlusion_result }}" download="occlusion_result.jpg" class="button">Download Occlusion Map</a>
+            </div>
+        </div>
+                <div class="card">
+            <h2>ABCDE Features</h2>
+            <p>
+                <strong>What are ABCDE Features?</strong><br>
+                Dermatologists use the ABCDE rule to help identify suspicious skin lesions that may be cancerous. Each letter stands for a key visual feature:
+            </p>
+            <ul>
+                <li>
+                    <strong>A - Asymmetry:</strong>
+                    One half of the lesion does not match the other half in shape, color, or texture. High asymmetry can be a warning sign.
+                </li>
+                <li>
+                    <strong>B - Border Irregularity:</strong>
+                    The edges are ragged, notched, or blurred, rather than smooth and even.
+                </li>
+                <li>
+                    <strong>C - Color Variation:</strong>
+                    The lesion contains multiple colors (brown, black, tan, red, white, or blue) instead of being uniform.
+                </li>
+                <li>
+                    <strong>D - Diameter:</strong>
+                    The spot is larger than 6mm (about the size of a pencil eraser), though melanomas can be smaller.
+                </li>
+            </ul>
+            <p>
+                <em>Note: These features are guidelines. If you notice any of them, especially changes over time, consult a dermatologist for a professional evaluation.</em>
+            </p>
+            {% if abcde_features %}
+                <ul>
+                    <li>
+                        <strong>Asymmetry Score:</strong> {{ abcde_features.Asymmetry }}
+                        {% if abcde_features.Asymmetry > 5000 %}
+                            <span style="color:red;">(High)</span>
+                        {% else %}
+                            <span style="color:green;">(Low)</span>
+                        {% endif %}
+                    </li>
+                    <li>
+                        <strong>Border Irregularity Score:</strong> {{ abcde_features['Border Irregularity']|round(2) }}
+                        {% if abcde_features['Border Irregularity'] > 50 %}
+                            <span style="color:red;">(High)</span>
+                        {% else %}
+                            <span style="color:green;">(Low)</span>
+                        {% endif %}
+                    </li>
+                    <li>
+                        <strong>Color Variation Score:</strong> {{ abcde_features['Color Variation']|round(2) }}
+                        {% if abcde_features['Color Variation'] > 40 %}
+                            <span style="color:red;">(High)</span>
+                        {% else %}
+                            <span style="color:green;">(Low)</span>
+                        {% endif %}
+                    </li>
+                    <li>
+                        <strong>Diameter (pixels):</strong> {{ abcde_features.Diameter }}
+                        {% if abcde_features.Diameter > 300 %}
+                            <span style="color:red;">(High)</span>
+                        {% else %}
+                            <span style="color:green;">(Low)</span>
+                        {% endif %}
+                    </li>
+                </ul>
+            {% else %}
+                <p>Not available.</p>
+            {% endif %}
+        </div>
+        
+        <div class="card">
+            <h2>Prediction Uncertainty</h2>
+            <p>
+                <strong>What is Prediction Uncertainty?</strong><br>
+                Uncertainty measures how confident the AI model is about its prediction. High uncertainty means the model is less sure, which can happen with ambiguous or unusual images.
+            </p>
+            <ul>
+                <li>
+                    <strong>Low uncertainty:</strong> The model is confident in its prediction. Results are more likely to be reliable.
+                </li>
+                <li>
+                    <strong>High uncertainty:</strong> The model is unsure. This may occur if the image is unclear, the lesion is atypical, or the case is rare.
+                </li>
+                <li>
+                    If uncertainty is high, it is especially important to consult a dermatologist for a professional opinion.<br>
+                    <em>
+                        (Interpretation: The maximum value in the list below is used. If it is greater than 0.15, uncertainty is considered <span style="color:red;">High</span>; otherwise, it is <span style="color:green;">Low</span>.)
+                    </em>
+                </li>
+            </ul>
+            {% if uncertainty %}
+                <ul>
+                    <li><strong>Uncertainty (std):</strong> {{ uncertainty|safe }}</li>
+                </ul>
+            {% else %}
+                <p>Not available.</p>
+            {% endif %}
+        </div>
+
+        <!-- Disease Info -->
+        <div class="card">
+            <h2>Disease Information</h2>
+            <p>{{ disease_info }}</p>
+        </div>
+
+        <!-- AI Explanation -->
+        <div class="ai-box">
+            {{ ai_explanation | replace('\n', '<br>') | safe }}
+        </div>
+
+        <!-- Precautions -->
+        <div class="card">
+            <h2>Precautions</h2>
+            <ul>
+                {% for p in precautions %}
+                <li>{{ p }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <!-- Chart -->
+        <div class="card">
+            <h2>Prediction Probabilities</h2>
+            <canvas id="chart" width="400" height="200"></canvas>
+        </div>
+
+        <!-- Similar Images -->
+        <div class="card">
+            <h2>Similar Cases</h2>
+            <div class="similar">
+                {% for img in similar_images %}
+                <img src="{{ img }}" alt="Similar">
+                {% endfor %}
+            </div>
+        </div>
+
+    </section>
+
+    <script>
+        window.addEventListener("load", function () {
+            const probs = {{ probabilities | tojson | safe }};
+            const labels = {{ class_names | tojson | safe }};
+            if (labels && probs && labels.length > 0) {
+                renderChart(labels, probs);
+            }
+        });
+        document.querySelector('form').addEventListener('submit', function() {
+            document.getElementById('loading-overlay').style.display = 'flex';
+        });
+    </script>
+
+    {% endif %}
+
+</div>
+</body>
+</html>

@@ -1,0 +1,12 @@
+Flask
+tensorflow
+numpy
+opencv-python
+pandas
+requests
+Pillow
+lime
+shap
+scikit-image
+gunicorn
+python-dotenv
