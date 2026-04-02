@@ -5,7 +5,6 @@ load_dotenv()
 from flask import Flask, render_template, request, flash
 import numpy as np
 import cv2
-import tensorflow as tf
 from tensorflow.keras.models import load_model
 from PIL import Image
 from gradcam import (
@@ -24,7 +23,13 @@ app = Flask(__name__)
 app.secret_key = "medvision_secret_key"  # Needed for flashing messages
 
 # --- Model and Classes ---
-model = load_model('mobilenet_model.h5', compile=False)
+model = None
+
+def get_model():
+    global model
+    if model is None:
+        model = load_model('mobilenet_model.h5', compile=False)
+    return model
 classes = [
     "Melanocytic nevi",
     "Melanoma",
@@ -129,7 +134,7 @@ def predict_image(img_path):
     x_train_std = 46.52079    # Replace with your actual std
     img_array = (img_array - x_train_mean) / x_train_std
     img_array = np.expand_dims(img_array, axis=0)
-    pred = model.predict(img_array)
+    pred = get_model().predict(img_array)
     class_idx = np.argmax(pred, axis=1)[0]
     return class_idx, pred
 
@@ -246,34 +251,34 @@ def index():
             occlusion_result = os.path.join("static/uploads", "occlusion_result.jpg")
 
             # Grad-CAM
-            heatmap = get_gradcam(model, img_array)
+            heatmap = get_gradcam(get_model(), img_array)
             gradcam_img = overlay_heatmap(path, heatmap)
             cv2.imwrite(gradcam_result, gradcam_img)
 
             # Grad-CAM++
-            heatmappp = get_gradcam_plus_plus(model, img_array)
+            heatmappp = get_gradcam_plus_plus(get_model(), img_array)
             gradcampp_img = overlay_heatmap(path, heatmappp)
             cv2.imwrite(gradcampp_result, gradcampp_img)
 
             # LIME
             from skimage.io import imsave
-            lime_img = lime_explanation(model, img_array)
+            lime_img = lime_explanation(get_model(), img_array)
             imsave(lime_result, lime_img)
 
             # Saliency Map
             saliency_result = os.path.join("static/uploads", "saliency_result.jpg")
-            saliency_img = saliency_explanation(model, img_array)
+            saliency_img = saliency_explanation(get_model(), img_array)
             cv2.imwrite(saliency_result, saliency_img)
 
             # Occlusion Map
-            occ_map = occlusion_map(model, img_array)
+            occ_map = occlusion_map(get_model(), img_array)
             cv2.imwrite(occlusion_result, (occ_map * 255).astype("uint8"))
 
             # ABCDE Features
             abcde_features = detect_abcde_features(path)
 
             # Prediction Uncertainty
-            mean_pred, uncertainty_val = prediction_uncertainty(model, img_array)
+            mean_pred, uncertainty_val = prediction_uncertainty(get_model(), img_array)
 
             # Disease info, risk, precautions
             details = disease_details.get(label, {})

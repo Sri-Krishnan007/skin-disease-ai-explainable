@@ -1,0 +1,9 @@
+[tool.poetry]
+name = "my-project"
+version = "0.1.0"
+description = ""
+
+[tool.poetry.dependencies]
+python = "3.11.9"
+fastapi = "^0.110.0"
+uvicorn = "^0.29.0"
