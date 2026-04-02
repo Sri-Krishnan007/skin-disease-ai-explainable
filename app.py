@@ -14,9 +14,7 @@ from gradcam import (
 )
 import os
 import requests
-import pandas as pd
-from glob import glob
-import shutil
+
 
 # --- Flask App Setup ---
 app = Flask(__name__)
@@ -108,23 +106,6 @@ disease_details = {
     }
 }
 
-# --- Data Preparation for Similar Images ---
-lesion_type_dict = {
-    'nv': 'Melanocytic nevi',
-    'mel': 'Melanoma',
-    'bkl': 'Benign keratosis-like lesions',
-    'bcc': 'Basal cell carcinoma',
-    'akiec': 'Actinic keratoses',
-    'vasc': 'Vascular lesions',
-    'df': 'Dermatofibroma'
-}
-base_skin_dir = 'kaggle/input/skin-cancer-mnist-ham10000'
-imageid_path_dict = {os.path.splitext(os.path.basename(x))[0]: x
-                     for x in glob(os.path.join(base_skin_dir, '*', '*.jpg'))}
-df = pd.read_csv(os.path.join(base_skin_dir, 'HAM10000_metadata.csv'))
-df['path'] = df['image_id'].map(imageid_path_dict.get)
-df['cell_type'] = df['dx'].map(lesion_type_dict.get)
-df['cell_type_idx'] = pd.Categorical(df['cell_type']).codes
 
 # --- Utility Functions ---
 def predict_image(img_path):
@@ -152,20 +133,22 @@ def get_warning(risk_level, confidence):
     return None
 
 def get_similar_images(label, n=5):
-    similar_df = df[df['cell_type'] == label]
-    sample = similar_df.sample(n=min(n, len(similar_df)), random_state=42)
-    static_paths = []
-    for src_path in sample['path']:
-        if src_path and os.path.exists(src_path):
-            filename = os.path.basename(src_path)
-            dest_path = os.path.join('static/uploads', filename)
-            try:
-                if not os.path.exists(dest_path):
-                    shutil.copy(src_path, dest_path)
-                static_paths.append(f'static/uploads/{filename}')
-            except Exception:
-                continue  # Skip if any error occurs
-    return static_paths
+    """Get similar images from static/uploads/{label}/ directory"""
+    import random
+    
+    similar_images_dir = os.path.join('static/uploads', label)
+    
+    # Return empty list if directory doesn't exist
+    if not os.path.exists(similar_images_dir):
+        return []
+    
+    # Get all image files in the disease-specific directory
+    image_files = [f for f in os.listdir(similar_images_dir) 
+                   if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+    
+    # Return up to n random images
+    selected = random.sample(image_files, k=min(n, len(image_files)))
+    return [f'static/uploads/{label}/{img}' for img in selected]
 
 def get_probability_chart(pred):
     probabilities = (pred[0] * 100).tolist()
